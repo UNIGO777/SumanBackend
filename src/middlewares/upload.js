@@ -3,9 +3,18 @@ import path from 'path'
 import fs from 'fs'
 import { env } from '../config/env.js'
 
-const dir = path.resolve(env.uploadDir)
-if (!fs.existsSync(dir)) {
-  fs.mkdirSync(dir, { recursive: true })
+let dir = path.resolve(env.uploadDir)
+try {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+} catch {
+  dir = '/tmp/uploads'
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+  } catch {}
 }
 
 const storage = multer.diskStorage({
@@ -32,4 +41,3 @@ export const uploadImage = multer({
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 }
 })
-

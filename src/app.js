@@ -17,7 +17,9 @@ import { errorHandler, notFound } from './middlewares/error.js'
 
 const app = express()
 
-await connectDB()
+connectDB().catch((err) => {
+  console.error('MongoDB connection error:', err?.message || err)
+})
 
 app.use(helmet())
 app.use(cors({ origin: env.corsOrigin }))
