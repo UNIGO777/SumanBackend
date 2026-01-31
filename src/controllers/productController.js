@@ -13,6 +13,7 @@ const normalizePrice = (price) => {
 }
 
 const ensureVariantsLean = (p) => {
+  if (!p) return null
   const variants = Array.isArray(p?.variants) ? p.variants : []
   if (variants.length) return p
   return { ...p, variants: [] }
@@ -60,6 +61,18 @@ const normalizeVariantInput = (v) => {
   return out
 }
 
+const normalizeStringArray = (arr) => {
+  if (!Array.isArray(arr)) return []
+  return arr.map((s) => String(s)).map((s) => s.trim()).filter(Boolean)
+}
+
+const pickPrimaryVariant = (product) => {
+  const variants = Array.isArray(product?.variants) ? product.variants : []
+  if (!variants.length) return null
+  const active = variants.find((v) => v?.isActive !== false)
+  return active || variants[0]
+}
+
 export const index = async (req, res, next) => {
   try {
     if (!isDBConnected()) return res.status(503).json({ ok: false, message: 'Database not connected' })
@@ -81,9 +94,11 @@ export const index = async (req, res, next) => {
 export const show = async (req, res, next) => {
   try {
     if (!isDBConnected()) return res.status(503).json({ ok: false, message: 'Database not connected' })
-    const id = req.params.id
-    if (!isId(id)) return res.status(400).json({ ok: false, message: 'Invalid id' })
-    const p = ensureVariantsLean(await Product.findById(id).lean())
+    const raw = (req.params.id || '').toString()
+    const key = decodeURIComponent(raw).trim()
+
+    const query = isId(key) ? { _id: key } : { slug: key }
+    const p = ensureVariantsLean(await Product.findOne(query).lean())
     if (!p) return res.status(404).json({ ok: false, message: 'Product not found' })
     res.json({ ok: true, data: p })
   } catch (err) {
@@ -97,12 +112,38 @@ export const create = async (req, res, next) => {
     const { name, description, categoryId, subCategoryId, attributes } = req.body
     if (!name) return res.status(400).json({ ok: false, message: 'Missing name' })
 
-    if (!Array.isArray(req.body.variants) || req.body.variants.length === 0) {
-      return res.status(400).json({ ok: false, message: 'Missing variants' })
+    let variants = []
+    if (Array.isArray(req.body.variants)) {
+      variants = req.body.variants.map(normalizeVariantInput)
+      if (variants.some((v) => !v)) return res.status(400).json({ ok: false, message: 'Invalid variants' })
     }
 
-    const variants = req.body.variants.map(normalizeVariantInput)
-    if (variants.some((v) => !v)) return res.status(400).json({ ok: false, message: 'Invalid variants' })
+    const fromVariant = pickPrimaryVariant({ variants }) || {}
+    const sku = req.body.sku !== undefined ? String(req.body.sku).trim() : fromVariant?.sku ? String(fromVariant.sku).trim() : ''
+    const stockRaw = req.body.stock !== undefined ? Number(req.body.stock) : fromVariant?.stock !== undefined ? Number(fromVariant.stock) : 0
+    if (Number.isNaN(stockRaw) || stockRaw < 0) return res.status(400).json({ ok: false, message: 'Invalid stock' })
+
+    const image =
+      req.body.image !== undefined ? String(req.body.image).trim() : fromVariant?.image ? String(fromVariant.image).trim() : ''
+    const imagesRaw = req.body.images !== undefined ? normalizeStringArray(req.body.images) : normalizeStringArray(fromVariant?.images)
+    const video =
+      req.body.video !== undefined ? String(req.body.video).trim() : fromVariant?.video ? String(fromVariant.video).trim() : ''
+
+    let makingCost
+    if (req.body.makingCost !== undefined) {
+      makingCost = normalizePrice(req.body.makingCost)
+      if (!makingCost) return res.status(400).json({ ok: false, message: 'Invalid makingCost' })
+    } else if (fromVariant?.makingCost !== undefined) {
+      makingCost = normalizePrice(fromVariant.makingCost)
+    }
+
+    let otherCharges
+    if (req.body.otherCharges !== undefined) {
+      otherCharges = normalizePrice(req.body.otherCharges)
+      if (!otherCharges) return res.status(400).json({ ok: false, message: 'Invalid otherCharges' })
+    } else if (fromVariant?.otherCharges !== undefined) {
+      otherCharges = normalizePrice(fromVariant.otherCharges)
+    }
 
     let category = categoryId
     let subCategory = subCategoryId
@@ -124,6 +165,13 @@ export const create = async (req, res, next) => {
     const doc = await Product.create({
       name: String(name).trim(),
       description: description || '',
+      sku: sku || undefined,
+      stock: stockRaw,
+      image: image || undefined,
+      images: imagesRaw.length ? imagesRaw : undefined,
+      video: video || undefined,
+      makingCost: makingCost || undefined,
+      otherCharges: otherCharges || undefined,
       category: category || undefined,
       subCategory: subCategory || undefined,
       isActive: req.body.isActive === undefined ? true : Boolean(req.body.isActive),
@@ -149,6 +197,28 @@ export const updateOne = async (req, res, next) => {
     if (data.description !== undefined) doc.description = data.description
     if (data.attributes !== undefined) doc.attributes = data.attributes
     if (data.isActive !== undefined) doc.isActive = Boolean(data.isActive)
+    if (data.sku !== undefined) doc.sku = String(data.sku).trim() || undefined
+    if (data.stock !== undefined) {
+      const stockRaw = Number(data.stock)
+      if (Number.isNaN(stockRaw) || stockRaw < 0) return res.status(400).json({ ok: false, message: 'Invalid stock' })
+      doc.stock = stockRaw
+    }
+    if (data.image !== undefined) doc.image = String(data.image).trim() || undefined
+    if (data.images !== undefined) {
+      const imagesRaw = normalizeStringArray(data.images)
+      doc.images = imagesRaw.length ? imagesRaw : []
+    }
+    if (data.video !== undefined) doc.video = String(data.video).trim() || undefined
+    if (data.makingCost !== undefined) {
+      const makingCost = normalizePrice(data.makingCost)
+      if (!makingCost) return res.status(400).json({ ok: false, message: 'Invalid makingCost' })
+      doc.makingCost = makingCost
+    }
+    if (data.otherCharges !== undefined) {
+      const otherCharges = normalizePrice(data.otherCharges)
+      if (!otherCharges) return res.status(400).json({ ok: false, message: 'Invalid otherCharges' })
+      doc.otherCharges = otherCharges
+    }
 
     if (data.categoryId) {
       const cId = data.categoryId
@@ -169,7 +239,6 @@ export const updateOne = async (req, res, next) => {
     }
 
     if (Array.isArray(data.variants)) {
-      if (data.variants.length === 0) return res.status(400).json({ ok: false, message: 'Variants required' })
       const variants = data.variants.map(normalizeVariantInput)
       if (variants.some((v) => !v)) return res.status(400).json({ ok: false, message: 'Invalid variants' })
       doc.variants = variants

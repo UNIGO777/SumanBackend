@@ -29,10 +29,16 @@ const ProductSchema = new Schema(
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     description: { type: String, default: '' },
+    sku: { type: String, trim: true },
+    images: [{ type: String }],
+    image: { type: String },
+    video: { type: String },
+    makingCost: { type: PriceSchema, required: false },
+    otherCharges: { type: PriceSchema, required: false },
+    stock: { type: Number, default: 0, min: 0 },
     variants: {
       type: [VariantSchema],
-      required: true,
-      validate: [(v) => Array.isArray(v) && v.length > 0, 'At least one variant is required']
+      default: []
     },
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: false },
     subCategory: { type: Schema.Types.ObjectId, ref: 'SubCategory', required: false },

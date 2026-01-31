@@ -116,13 +116,13 @@ export const openapiSpec = {
           name: { type: 'string' },
           slug: { type: 'string' },
           description: { type: 'string' },
-          variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariant' }, minItems: 1 },
+          variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariant' } },
           category: { type: 'string' },
           subCategory: { type: 'string' },
           isActive: { type: 'boolean' },
           attributes: { type: 'object' }
         },
-        required: ['name', 'variants']
+        required: ['name']
       },
       PromoCode: {
         type: 'object',
@@ -328,9 +328,9 @@ export const openapiSpec = {
                   subCategoryId: { type: 'string' },
                   attributes: { type: 'object' },
                   isActive: { type: 'boolean' },
-                  variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariantInput' }, minItems: 1 },
+                  variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariantInput' } },
                 },
-                required: ['name', 'variants']
+                required: ['name']
               }
             }
           }
@@ -369,7 +369,7 @@ export const openapiSpec = {
                   subCategoryId: { type: 'string' },
                   attributes: { type: 'object' },
                   isActive: { type: 'boolean' },
-                  variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariantInput' }, minItems: 1 },
+                  variants: { type: 'array', items: { $ref: '#/components/schemas/ProductVariantInput' } },
                 }
               }
             }

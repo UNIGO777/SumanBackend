@@ -32,9 +32,13 @@ app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'))
 app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
 
+app.get('/', (req, res) =>
+  res.json({ ok: true, health: '/health', api: '/api', docs: '/docs' })
+)
 app.get('/health', (req, res) => res.json({ ok: true }))
 app.get('/api', (req, res) => res.json({ ok: true }))
 
+app.get('/openapi.json', (req, res) => res.json(openapiSpec))
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec))
 
 app.use('/api/products', productRoutes)
